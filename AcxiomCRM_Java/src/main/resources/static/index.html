@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AcxiomCRM — Java Edition</title>
+<style>
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#182230;background:#f4f7fb}*{box-sizing:border-box}body{margin:0}
+header{background:#182b49;color:white;padding:20px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:22px;margin:0}header span{color:#cbd5e1;font-size:13px}.wrap{max-width:1150px;margin:28px auto;padding:0 18px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:14px}.card,.panel{background:white;border:1px solid #e1e7ef;border-radius:13px;padding:18px;box-shadow:0 3px 12px #172b4908}
+.card small{color:#64748b}.num{font-size:28px;font-weight:750;margin-top:8px}.panel{margin-top:18px}.panel h2{font-size:18px;margin-top:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}button{border:0;background:#2458a6;color:white;padding:10px 14px;border-radius:8px;cursor:pointer}button.secondary{background:#e7edf6;color:#182230}
+input,select{padding:10px;border:1px solid #ccd5e1;border-radius:7px;width:100%;margin:5px 0 10px}form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}label{font-size:13px;color:#526174}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:11px;border-bottom:1px solid #edf0f4}th{color:#64748b;font-weight:600}#message{margin:12px 0;color:#17663c}.muted{color:#64748b;font-size:13px}
+</style>
+</head>
+<body>
+<header><div><h1>AcxiomCRM</h1><span>Customer & Sales Management · Java / Spring Boot</span></div><span id="connection">Connecting…</span></header>
+<main class="wrap">
+<div class="cards" id="cards"></div>
+<section class="panel"><h2>Quick actions</h2><div class="actions">
+<button onclick="showForm('customer')">+ Customer</button><button onclick="showForm('lead')">+ Lead</button><button onclick="showForm('opportunity')">+ Opportunity</button><button onclick="showForm('followup')">+ Follow-up</button>
+<button class="secondary" onclick="loadAll()">Refresh data</button></div><div id="message"></div><div id="formarea"></div></section>
+<section class="panel"><h2>Customers</h2><input id="search" placeholder="Search customer name, email or company…" oninput="renderCustomers()"><div style="overflow:auto"><table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Company</th><th>Status</th><th></th></tr></thead><tbody id="customers"></tbody></table></div></section>
+<section class="panel"><h2>Leads</h2><div style="overflow:auto"><table><thead><tr><th>Name</th><th>Company</th><th>Source</th><th>Status</th><th>Expected value</th></tr></thead><tbody id="leads"></tbody></table></div></section>
+<section class="panel"><h2>Opportunities</h2><div style="overflow:auto"><table><thead><tr><th>Name</th><th>Customer</th><th>Stage</th><th>Amount</th><th>Probability</th><th>Weighted value</th></tr></thead><tbody id="opportunities"></tbody></table></div></section>
+<section class="panel"><h2>Upcoming follow-ups</h2><div style="overflow:auto"><table><thead><tr><th>Subject</th><th>Related to</th><th>Date</th><th>Type</th><th>Status</th></tr></thead><tbody id="followups"></tbody></table></div></section>
+<section class="panel"><h2>Audit log</h2><div style="overflow:auto"><table><thead><tr><th>When</th><th>Action</th><th>Entity</th><th>Record ID</th><th>Details</th></tr></thead><tbody id="audit"></tbody></table></div></section>
+<p class="muted">Educational starter. Add Spring Security / role-based access before production use.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);let data={customers:[],leads:[],opportunities:[],followups:[],audit:[]};
+const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n||0);
+async function api(path,options={}){const r=await fetch('/api/'+path,{headers:{'Content-Type':'application/json'},...options});if(!r.ok){let t=await r.text();throw new Error(t||r.statusText)}return r.status===204?null:r.json()}
+async function loadAll(){try{const [dash,...rest]=await Promise.all(['dashboard','customers','leads','opportunities','followups','audit'].map(x=>api(x)));data={customers:rest[0],leads:rest[1],opportunities:rest[2],followups:rest[3],audit:rest[4]};$('connection').textContent='API connected';$('cards').innerHTML=[['Customers',dash.customers],['Leads',dash.leads],['Opportunities',dash.opportunities],['Won',dash.won],['Lost',dash.lost],['Sales pipeline',money(dash.pipeline)],['Weighted pipeline',money(dash.weightedPipeline)],['Follow-ups',dash.followUps]].map(x=>`<div class="card"><small>${x[0]}</small><div class="num">${x[1]}</div></div>`).join('');renderCustomers();$('leads').innerHTML=data.leads.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.company)}</td><td>${esc(x.source)}</td><td>${esc(x.status)}</td><td>${money(x.expectedValue)}</td></tr>`).join('');$('opportunities').innerHTML=data.opportunities.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.customerName)}</td><td>${esc(x.stage)}</td><td>${money(x.amount)}</td><td>${x.probability}%</td><td>${money(x.amount*x.probability/100)}</td></tr>`).join('');$('followups').innerHTML=data.followups.map(x=>`<tr><td>${esc(x.subject)}</td><td>${esc(x.relatedTo)}</td><td>${x.followUpDate||''}</td><td>${esc(x.type)}</td><td>${esc(x.status)}</td></tr>`).join('');$('audit').innerHTML=data.audit.slice().reverse().map(x=>`<tr><td>${(x.createdAt||'').replace('T',' ')}</td><td>${esc(x.action)}</td><td>${esc(x.entityName)}</td><td>${esc(x.recordId)}</td><td>${esc(x.details)}</td></tr>`).join('')}catch(e){$('connection').textContent='API error';$('message').textContent='Could not load data: '+e.message}}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function renderCustomers(){let q=($('search').value||'').toLowerCase();$('customers').innerHTML=data.customers.filter(x=>[x.name,x.email,x.company,x.phone].some(v=>(v||'').toLowerCase().includes(q))).map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.email)}</td><td>${esc(x.phone)}</td><td>${esc(x.company)}</td><td>${esc(x.status)}</td><td><button class="secondary" onclick="delCustomer(${x.id})">Delete</button></td></tr>`).join('')}
+async function delCustomer(id){if(!confirm('Delete this customer?'))return;try{await api('customers/'+id,{method:'DELETE'});$('message').textContent='Customer deleted';await loadAll()}catch(e){$('message').textContent=e.message}}
+function showForm(type){const forms={
+customer:{title:'Create customer',fields:[['name','Customer name','text',true],['email','Email','email',true],['phone','Phone','tel',true],['company','Company','text',false],['city','City','text',false]],path:'customers'},
+lead:{title:'Create lead',fields:[['name','Lead name','text',true],['email','Email','email',false],['phone','Phone','tel',false],['company','Company','text',false],['source','Source','text',false],['expectedValue','Expected value (₹)','number',true]],path:'leads'},
+opportunity:{title:'Create opportunity',fields:[['name','Opportunity name','text',true],['customerName','Customer name','text',false],['amount','Amount (₹)','number',true],['probability','Probability (0–100)','number',true],['stage','Stage: Qualification / Proposal / Negotiation / Won / Lost','text',true],['expectedCloseDate','Expected close date','date',true]],path:'opportunities'},
+followup:{title:'Schedule follow-up',fields:[['subject','Subject','text',true],['relatedTo','Related customer/lead','text',false],['followUpDate','Follow-up date','date',true],['type','Type: Call / Meeting / Email / Task','text',true],['notes','Notes','text',false]],path:'followups'}};
+const f=forms[type];$('formarea').innerHTML=`<h3>${f.title}</h3><form id="entry">${f.fields.map(([n,l,t,req])=>`<label>${l}<input name="${n}" type="${t}" ${req?'required':''} ${t==='number'?'min="0"':''}></label>`).join('')}<div style="align-self:end"><button>Save</button> <button type="button" class="secondary" onclick="$('formarea').innerHTML=''">Cancel</button></div></form>`;
+$('entry').onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target),obj=Object.fromEntries(fd.entries());for(const k of ['expectedValue','amount','probability'])if(obj[k]!==undefined)obj[k]=Number(obj[k]);try{await api(f.path,{method:'POST',body:JSON.stringify(obj)});$('message').textContent=f.title+' successfully';$('formarea').innerHTML='';await loadAll()}catch(err){$('message').textContent='Save failed. Check required fields, email/phone format, duplicate customer email/phone, amount, probability and dates.';console.error(err)}}}
+loadAll();
+</script>
+</body></html>
